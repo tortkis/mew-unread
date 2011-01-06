@@ -1,7 +1,6 @@
 ;;; mew-unread (folder list mode for mew)
 
-;;; Copyright (C) 2011, Toru Takaishi
-;;; All rights reserved.
+;;; Copyright (C) 2011, Toru Takaishi.  All rights reserved.
 
 ;;; Redistribution and use in source and binary forms, with or without
 ;;; modification, are permitted provided that the following conditions
@@ -29,10 +28,6 @@
 ;;; THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 ;;; SUCH DAMAGE.
 
-;; Updated: January 2, 2011
-;; - fixed a bug of not updating the unread diff number in some cases.
-;; - fixed a bug that visiting +queue or +draft is redirected to *Mew unread* buffer.
-
 (require 'mew)
 
 ;; variables
@@ -47,10 +42,12 @@
   "*List of mew folders to be listed by mew-unread-check.")
 
 (defvar *mew-unread-position* 0)
-(defvar *mew-unread-check-exclude* '("+queue" "+draft"))
-
+(defvar *mew-unread-retrieve-program* 'mew-summary-retrieve)
 (defvar *mew-unread-counts* (make-hash-table :test 'equal))
 (defvar *mew-unread-diff* (make-hash-table :test 'equal))
+(defvar *mew-unread-color* '((:unread . "green")
+                             (:inc . "red")
+                             (:dec . "blue")))
 
 ;; mew unread major mode
 
@@ -64,7 +61,7 @@
     (define-key *mew-unread-mode-map* "p" 'mew-unread-move-up)
     (define-key *mew-unread-mode-map* "n" 'mew-unread-move-down)
     (define-key *mew-unread-mode-map* "q" 'mew-unread-quit)
-    (define-key *mew-unread-mode-map* "i" 'mew-unread-retrieve)
+    (define-key *mew-unread-mode-map* "i" 'mew-unread-check-folder-and-retrieve)
     (define-key *mew-unread-mode-map* "g" 'mew-unread-goto-folder)
     (define-key *mew-unread-mode-map* " " 'mew-unread-visit-folder)
     (define-key *mew-unread-mode-map* "\r" 'mew-unread-visit-folder))
@@ -89,11 +86,6 @@
   (when (< (line-number-at-pos) 3)
     (goto-char (point-min))
     (forward-line 2)))
-
-(defun mew-unread-retrieve ()
-  (interactive)
-  (mew-summary-switch-to-folder "+inbox")
-  (mew-summary-retrieve))
 
 (defun mew-unread-goto-folder ()
   (interactive)
@@ -120,6 +112,7 @@
            (fname (buffer-substring sp ep)))
       (beginning-of-line)
       (setq *mew-unread-position* (point))
+      (delete-other-windows)
       (mew-summary-switch-to-folder fname)
       (when go-to-unread
         (beginning-of-buffer)
@@ -136,6 +129,14 @@
         (setq cnt (1+ cnt)))
       cnt)))
 
+(defun insert-color-text (color text)
+  (let (p0 p1)
+    (setq p0 (point))
+    (insert text)
+    (setq p1 (point))
+    (put-text-property p0 p1 'font-lock-face
+                       (cons 'foreground-color color))))
+
 (defun mew-unread-display ()
   (get-buffer-create "*Mew unread*")
   (switch-to-buffer "*Mew unread*")
@@ -143,7 +144,9 @@
   (setq buffer-read-only nil)
   (kill-region (point-min) (point-max))
   (insert " total  unread(diff)  marked(diff)  :folder\n")
-  (insert "-----------------------------------------------------\n")
+  (dotimes (i (+ (* 6 5) (* 2 3) 2 (apply #'max (mapcar #'length *mew-unread-check-list*))))
+    (insert "-"))
+  (insert "\n")
   (mapc #'(lambda (folder)
             (let ((unreadnum (or (car (gethash folder *mew-unread-counts*)) 0))
                   (marknum (or (cadr (gethash folder *mew-unread-counts*)) 0))
@@ -152,21 +155,20 @@
                   (marknum-diff (or (cadr (gethash folder *mew-unread-diff*)) 0)))
               (goto-char (point-max))
               (let (p0 p1)
-                (insert (format "%6d" totalnum))
-                (insert (format "  %6d" unreadnum))
-                (setq p0 (point))
-                (insert (format "%-6s" (format "(%+d)" unreadnum-diff)))
-                (setq p1 (point))
-                (unless (= unreadnum-diff 0)
-                  (put-text-property p0 p1 'font-lock-face
-                                     `(foreground-color . ,(if (> unreadnum-diff 0) "red" "blue"))))
-                (insert (format "  %6d" marknum))
-                (setq p0 (point))
-                (insert (format "%-6s" (format "(%+d)" marknum-diff)))
-                (setq p1 (point))
-                (unless (= marknum-diff 0)
-                  (put-text-property p0 p1 'font-lock-face
-                                     `(foreground-color . ,(if (> marknum-diff 0) "red" "blue"))))
+                (insert (format "%6d  " totalnum))
+                (insert-color-text (if (> unreadnum 0) (cdr (assoc :unread *mew-unread-color*)) nil)
+                                   (format "%6d" unreadnum))
+                (insert-color-text (cond ((> unreadnum-diff 0) (cdr (assoc :inc *mew-unread-color*)))
+                                         ((< unreadnum-diff 0) (cdr (assoc :dec *mew-unread-color*)))
+                                         (t nil))
+                                   (format "%-6s" (format "(%+d)" unreadnum-diff)))
+                (insert "  ")
+                (insert-color-text (if (> marknum 0) (cdr (assoc :unread *mew-unread-color*)) nil)
+                                   (format "%6d" marknum))
+                (insert-color-text (cond ((> marknum-diff 0) (cdr (assoc :inc *mew-unread-color*)))
+                                         ((< marknum-diff 0) (cdr (assoc :dec *mew-unread-color*)))
+                                         (t nil))
+                                   (format "%-6s" (format "(%+d)" marknum-diff)))
                 (insert (format "  :%s\n" folder)))))
         *mew-unread-check-list*)
   (goto-char *mew-unread-position*)
@@ -203,7 +205,7 @@
   (interactive)
   (let ((cbuf-name (buffer-name)))
     (mew-unread-check-all)
-    (if (find cbuf-name *mew-unread-check-exclude* :test 'equal)
+    (if (not (find cbuf-name *mew-unread-check-list* :test 'equal))
         (mew-unread-display)
       (mew-summary-switch-to-folder cbuf-name)
       (save-excursion
@@ -211,38 +213,55 @@
       ;; after mew-summary-ls, mew-unread-check-folder will be called.
       )))
 
-(defun mew-unread-summary-ls-and-retrieve (&optional no-flush)
+(defun mew-unread-check-folder-and-retrieve (&optional no-flush)
   (interactive "P")
-  (mew-unread-check-folder (buffer-name) t)
-  (mew-summary-retrieve no-flush))
+  (let ((cbuf-name (buffer-name)))
+    (if (find cbuf-name *mew-unread-check-list* :test 'equal)
+        (mew-unread-check-folder cbuf-name t)
+      (setq *mew-unread-position* (point))
+      (mew-summary-switch-to-folder "+inbox")))
+  (funcall *mew-unread-retrieve-program*))
+
+(defun mew-unread-refile ()
+  ;; called after scan of +inbox
+  (set-buffer "+inbox")
+  ;; record received emails in *received-email* buffer
+  (when (> (point-max) (point-min))
+    (let ((rcved (replace-regexp-in-string
+                  "^" "==> "
+                  (replace-regexp-in-string
+                   "[ ]+\r.*$" ""
+                   (buffer-substring (point) (- (point-max) 1)))))
+          (rcv-win nil))
+      (get-buffer-create "*received-email*")
+      (set-buffer "*received-email*")
+      (setq buffer-read-only nil)
+      (goto-char (point-max))
+      (insert rcved)
+      (insert "\n")
+      (goto-char (point-max))
+      (setq buffer-read-only t)
+      ;;
+      (delete-other-windows)
+      (let ((cwin (selected-window))
+            (rcv-win (split-window-vertically -15)))
+        (select-window rcv-win)
+        (set-window-buffer rcv-win "*received-email*")
+        (select-window cwin))))
+  ;;
+  (mew-summary-switch-to-folder "+inbox")
+  (mew-summary-auto-refile)
+  (mew-summary-exec)
+  ;; run mew-summary-exec-hook
+  (mew-unread-check-all)
+  (mew-unread-display)
+  t)
+
 
 ;; retrieve mail
 
-(setq mew-pop-sentinel-non-biff-hook
-      '(lambda ()
-         (set-buffer "+inbox")
-         ;; record received emails in *received-email* buffer
-         (when (> (point-max) (point-min))
-           (let ((rcved (replace-regexp-in-string
-                         "^" "==> "
-                         (replace-regexp-in-string
-                          "[ ]+\r.*$" ""
-                          (buffer-substring (point) (- (point-max) 1))))))
-             (get-buffer-create "*received-email*")
-             (set-buffer "*received-email*")
-             (setq buffer-read-only nil)
-             (goto-char (point-max))
-             (insert rcved)
-             (insert "\n")
-             (setq buffer-read-only t)))
-         ;;
-         (mew-summary-switch-to-folder "+inbox")
-         (mew-summary-auto-refile)
-         (mew-summary-exec)
-         ;; run mew-summary-exec-hook
-         (mew-unread-check-all)
-         (mew-unread-display)
-         t))
+(add-hook 'mew-pop-sentinel-non-biff-hook
+          'mew-unread-refile)
 
 (add-hook 'mew-summary-exec-hook
           '(lambda ()
@@ -257,13 +276,13 @@
 (add-hook 'mew-scan-sentinel-hook
           '(lambda ()
              (let ((cbuf-name (buffer-name)))
-               (unless (find cbuf-name *mew-unread-check-exclude* :test 'equal)
-                 (mew-unread-check-all cbuf-name)))))
+               (cond ((equal cbuf-name "+inbox")
+                      (mew-unread-refile))
+                     ((find cbuf-name *mew-unread-check-list* :test 'equal)
+                      (mew-unread-check-all cbuf-name))))))
 
-(add-hook 'mew-summary-mode-hook
-	  '(lambda ()
-	     (local-set-key "b" 'mew-unread-check)
-             (local-set-key "i" 'mew-unread-summary-ls-and-retrieve)))
+(define-key mew-summary-mode-map "b" 'mew-unread-check)
+(define-key mew-summary-mode-map "i" 'mew-unread-check-folder-and-retrieve)
 
 (provide 'mew-unread)
 
