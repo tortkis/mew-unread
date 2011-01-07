@@ -63,6 +63,7 @@
     (define-key *mew-unread-mode-map* "q" 'mew-unread-quit)
     (define-key *mew-unread-mode-map* "i" 'mew-unread-check-folder-and-retrieve)
     (define-key *mew-unread-mode-map* "g" 'mew-unread-goto-folder)
+    (define-key *mew-unread-mode-map* "w" 'mew-summary-write)
     (define-key *mew-unread-mode-map* " " 'mew-unread-visit-folder)
     (define-key *mew-unread-mode-map* "\r" 'mew-unread-visit-folder))
   (setq major-mode 'mew-unread-mode)
@@ -227,27 +228,26 @@
   (set-buffer "+inbox")
   ;; record received emails in *received-email* buffer
   (when (> (point-max) (point-min))
+    (delete-other-windows)
     (let ((rcved (replace-regexp-in-string
                   "^" "==> "
                   (replace-regexp-in-string
                    "[ ]+\r.*$" ""
                    (buffer-substring (point) (- (point-max) 1)))))
-          (rcv-win nil))
+          (rcv-win nil)
+          (cwin (selected-window))
+          (rcv-win (split-window-vertically -15)))
+      (select-window rcv-win)
       (get-buffer-create "*received-email*")
-      (set-buffer "*received-email*")
+      (set-window-buffer rcv-win "*received-email*")
+      (switch-to-buffer "*received-email*")
       (setq buffer-read-only nil)
       (goto-char (point-max))
       (insert rcved)
       (insert "\n")
       (goto-char (point-max))
       (setq buffer-read-only t)
-      ;;
-      (delete-other-windows)
-      (let ((cwin (selected-window))
-            (rcv-win (split-window-vertically -15)))
-        (select-window rcv-win)
-        (set-window-buffer rcv-win "*received-email*")
-        (select-window cwin))))
+      (select-window cwin)))
   ;;
   (mew-summary-switch-to-folder "+inbox")
   (mew-summary-auto-refile)
@@ -256,7 +256,6 @@
   (mew-unread-check-all)
   (mew-unread-display)
   t)
-
 
 ;; retrieve mail
 

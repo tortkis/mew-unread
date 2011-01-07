@@ -1,4 +1,10 @@
 
+2011-01-06  Toru Takaishi <tortkis@mtlhc.com>
+
+* display *received-email* buffer after receiving email.
+
+* add key binding for mew-summmary-write.
+
 2011-01-05  Toru Takaishi <tortkis@mtlhc.com>
 
 * deleted variable *mew-unread-check-exclude*
