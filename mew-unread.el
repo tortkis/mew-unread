@@ -63,7 +63,7 @@
     (define-key *mew-unread-mode-map* "q" 'mew-unread-quit)
     (define-key *mew-unread-mode-map* "i" 'mew-unread-check-folder-and-retrieve)
     (define-key *mew-unread-mode-map* "g" 'mew-unread-goto-folder)
-    (define-key *mew-unread-mode-map* "w" 'mew-summary-write)
+    (define-key *mew-unread-mode-map* "w" 'mew-unread-summary-write)
     (define-key *mew-unread-mode-map* " " 'mew-unread-visit-folder)
     (define-key *mew-unread-mode-map* "\r" 'mew-unread-visit-folder))
   (setq major-mode 'mew-unread-mode)
@@ -96,6 +96,11 @@
   (mew-summary-switch-to-folder "+inbox")
   (mew-summary-goto-folder)
   (delete-window w0))
+
+(defun mew-unread-summary-write ()
+  (interactive)
+  (mew-summary-switch-to-folder "+queue")
+  (mew-summary-write))
 
 (defun mew-unread-quit ()
   (interactive)
