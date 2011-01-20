@@ -182,7 +182,9 @@
     (goto-char (point-min))
     (forward-line 2))
   (setq buffer-read-only t)
-  (redraw-display))
+  ;; re-display disappeared elscreen tabs
+  (when (functionp 'elscreen-e21-tab-update)
+    (elscreen-e21-tab-update)))
 
 (defun mew-unread-check-folder (folder &optional clear-diff)
   (let ((unreadnum 0) (marknum 0) (totalnum 0)
