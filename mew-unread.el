@@ -287,12 +287,14 @@
                      ((find cbuf-name *mew-unread-check-list* :test 'equal)
                       (mew-unread-check-all cbuf-name))))))
 
+(add-hook 'mew-summary-mode-hook
+          '(lambda ()
+             (setf (gethash (buffer-name) *mew-unread-diff*) (list 0 0))))
+
 (define-key mew-summary-mode-map "b" 'mew-unread-check)
 (define-key mew-summary-mode-map "i" 'mew-unread-check-folder-and-retrieve)
 
 (provide 'mew-unread)
-
-
 
 ;; [mew] summary mode
 ;;          | "i"
