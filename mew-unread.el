@@ -226,6 +226,7 @@
   (let ((cbuf-name (buffer-name)))
     (if (find cbuf-name *mew-unread-check-list* :test 'equal)
         (mew-unread-check-folder cbuf-name t)
+      (set-buffer "*Mew unread*")
       (setq *mew-unread-position* (point))
       (mew-summary-switch-to-folder "+inbox")))
   (funcall *mew-unread-retrieve-program*))
@@ -257,11 +258,12 @@
       (select-window cwin)))
   ;;
   (mew-summary-switch-to-folder "+inbox")
-  (mew-summary-auto-refile)
-  (mew-summary-exec)
-  ;; run mew-summary-exec-hook
-  (mew-unread-check-all)
-  (mew-unread-display)
+  (cond ((= (point-min) (point-max))
+         (mew-unread-check-all)
+         (mew-unread-display))
+        (t
+         (mew-summary-auto-refile)
+         (mew-summary-exec)))
   t)
 
 ;; retrieve mail
@@ -275,7 +277,7 @@
                (mapc #'(lambda (folder)
                          (mew-summary-switch-to-folder folder)
                          (save-excursion
-                           (mew-summary-ls t nil nil)))
+                           (mew-summary-ls t nil t)))
                      *mew-unread-check-list*)
                (mew-summary-switch-to-folder cbuf-name))))
 
