@@ -1,4 +1,4 @@
-;;; mew-unread (folder list mode for mew)
+;;; mew-unread.el --- folder list mode for mew
 
 ;;; Copyright (C) 2011, Toru Takaishi.  All rights reserved.
 
